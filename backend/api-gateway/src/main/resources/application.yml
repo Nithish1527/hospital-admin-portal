@@ -1,0 +1,46 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  profiles:
+    active: dev
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.hospital: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+# Docker profile configuration (uses environment variables from docker-compose)
+USER_SERVICE_URL: ${USER_SERVICE_URL:http://user-service:8081}
+PATIENT_SERVICE_URL: ${PATIENT_SERVICE_URL:http://patient-service:8082}
+APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:http://appointment-service:8083}
+DEPARTMENT_SERVICE_URL: ${DEPARTMENT_SERVICE_URL:http://department-service:8084}
+MEDICAL_SERVICE_URL: ${MEDICAL_SERVICE_URL:http://medical-service:8085}
