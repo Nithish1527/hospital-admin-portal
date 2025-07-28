@@ -1,0 +1,196 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15
+    container_name: hospital-postgres
+    environment:
+      POSTGRES_DB: hospital_db
+      POSTGRES_USER: hospital_admin
+      POSTGRES_PASSWORD: hospital_pass123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../database/postgresql/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Service Discovery
+  eureka-server:
+    build: ../../backend/service-discovery
+    container_name: hospital-eureka
+    ports:
+      - "8761:8761"
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Config Server
+  config-server:
+    build: ../../backend/config-server
+    container_name: hospital-config
+    ports:
+      - "8888:8888"
+    depends_on:
+      - eureka-server
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Auth Service
+  auth-service:
+    build: ../../backend/auth-service
+    container_name: hospital-auth
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hospital_db
+      - SPRING_DATASOURCE_USERNAME=hospital_admin
+      - SPRING_DATASOURCE_PASSWORD=hospital_pass123
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      - postgres
+      - eureka-server
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Patient Service
+  patient-service:
+    build: ../../backend/patient-service
+    container_name: hospital-patient
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hospital_db
+      - SPRING_DATASOURCE_USERNAME=hospital_admin
+      - SPRING_DATASOURCE_PASSWORD=hospital_pass123
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      - postgres
+      - eureka-server
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Appointment Service
+  appointment-service:
+    build: ../../backend/appointment-service
+    container_name: hospital-appointment
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hospital_db
+      - SPRING_DATASOURCE_USERNAME=hospital_admin
+      - SPRING_DATASOURCE_PASSWORD=hospital_pass123
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      - postgres
+      - eureka-server
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Staff Service
+  staff-service:
+    build: ../../backend/staff-service
+    container_name: hospital-staff
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hospital_db
+      - SPRING_DATASOURCE_USERNAME=hospital_admin
+      - SPRING_DATASOURCE_PASSWORD=hospital_pass123
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      - postgres
+      - eureka-server
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Report Service
+  report-service:
+    build: ../../backend/report-service
+    container_name: hospital-report
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hospital_db
+      - SPRING_DATASOURCE_USERNAME=hospital_admin
+      - SPRING_DATASOURCE_PASSWORD=hospital_pass123
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      - postgres
+      - eureka-server
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build: ../../backend/api-gateway
+    container_name: hospital-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+      - auth-service
+      - patient-service
+      - appointment-service
+      - staff-service
+      - report-service
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build: ../../frontend/hospital-admin-ui
+    container_name: hospital-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hospital-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hospital-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  grafana_data:
+
+networks:
+  hospital-network:
+    driver: bridge
